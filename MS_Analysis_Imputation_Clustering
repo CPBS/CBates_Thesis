@@ -1,0 +1,432 @@
+require(MSnbase)
+require(MSqRob)
+peptides <- import2MSnSet("/Volumes/WDElements/FAPS_MS/3rd_MBR/peptides.txt", filetype = "MaxQuant",remove_pattern = TRUE)
+runs <- sampleNames(peptides)
+tag <- factor(c(rep("467", 12),rep("ENO1", 12), rep("ENO2", 12),rep("NIP1",12)), levels=c("467", "ENO1", "ENO2","NIP1"))
+sampletype <- factor(c(rep(c(rep("Inp", 3), rep("P1", 3), rep("P2", 3), rep("P3", 3)), 4)), levels = c("Inp", "P1", "P2", "P3"))
+biorep=as.factor(substr(runs,0,nchar(runs)-2))
+batch=as.factor(c(1,1,1,
+                  1,1,1,
+                  1,1,1,
+                  1,1,1,
+                  1,1,2,
+                  1,1,2,
+                  1,1,2,
+                  1,1,2,
+                  2,1,2,
+                  2,1,2,
+                  2,1,2,
+                  2,1,2,
+                  2,2,2,
+                  2,2,2,
+                  2,2,2,
+                  2,2,2
+                  ))
+harvest=as.factor(c(1,2,3,
+                    1,2,3,
+                    1,2,3,
+                    1,2,3,
+                    4,5,6,
+                    4,5,6,
+                    4,5,6,
+                    4,5,6,
+                    7,8,9,
+                    7,8,9,
+                    7,8,9,
+                    7,8,9,
+                    10,11,12,
+                    10,11,12,
+                    10,11,12,
+                    10,11,12))
+exp_annotation <- data.frame(runs=runs, tag=tag, sampletype=sampletype, biorep=biorep,batch=batch,harvest=harvest)
+
+# Replace NA with 0 for processing
+exprs(peptides_processed)[is.na(exprs(peptides_processed))] <- 0
+
+# Store observed proteins in each fraction
+observed_proteins<-data.frame(ID=unique(peptides_processed@featureData@data$Proteins))
+Inp <- peptides_processed[rowSums(exprs(peptides_processed)[, c(1:3,13:15,25:27,37:39)])>0, 
+                          c(1:3,13:15,25:27,37:39)]
+observed_Inp<-data.frame(ID=unique(Inp@featureData@data$Proteins))
+P1 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(4:6,16:18,28:30,40:42)])>0, 
+                         c(4:6,16:18,28:30,40:42)]
+observed_P1<-data.frame(ID=unique(P1@featureData@data$Proteins))
+P2 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(7:9,19:21,31:33,43:45)])>0, 
+                         c(7:9,19:21,31:33,43:45)]
+observed_P2<-data.frame(ID=unique(P2@featureData@data$Proteins))
+P3 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(10:12,22:24,34:36,46:48)])>0, 
+                         c(10:12,22:24,34:36,46:48)]
+observed_P3<-data.frame(ID=unique(P3@featureData@data$Proteins))
+
+##############UPSET PLOTS################
+#Upset plots of detected proteins based on fractions (e.g. appearing in input, P1, P2, P3)
+listDetected = list(as.character(observed_Inp$ID), as.character(observed_P1$ID), as.character(observed_P2$ID),as.character(observed_P3$ID))
+listDetected=setNames(listDetected,c("Input", "P1", "P2","P3"))
+matrixDetected = make_comb_mat(listDetected) #This can be used in upset plot
+ComplexHeatmap::UpSet(matrixDetected,
+                      set_order=c("Input", "P1","P2","P3"),
+                      comb_order = order(comb_size(matrixDetected),decreasing = TRUE),
+                      comb_col = c("#f5ee9e","#f3e368","#f7b267","#f25c54")[comb_degree(matrixDetected)])
+
+####Upset plots of detected proteins based on strains (e.g. appearing in 467, ENO1-MS2 etc)
+x467 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(1:12)])>0, 
+                          c(1:12)]
+observed_467<-data.frame(ID=unique(x467@featureData@data$Proteins))
+ENO1 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(13:24)])>0, 
+                          c(13:24)]
+observed_ENO1<-data.frame(ID=unique(ENO1@featureData@data$Proteins))
+ENO2 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(25:36)])>0, 
+                          c(25:36)]
+observed_ENO2<-data.frame(ID=unique(ENO2@featureData@data$Proteins))
+NIP1 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(37:48)])>0, 
+                          c(37:48)]
+observed_NIP1<-data.frame(ID=unique(NIP1@featureData@data$Proteins))
+
+listDetectedStrain = list(as.character(observed_467$ID), as.character(observed_ENO1$ID),
+                    as.character(observed_ENO2$ID),as.character(observed_NIP1$ID))
+listDetectedStrain=setNames(listDetectedStrain,c("467", "ENO1", "ENO2","NIP1"))
+matrixDetectedStrain = make_comb_mat(listDetectedStrain) #This can be used in upset plot
+ComplexHeatmap::UpSet(matrixDetectedStrain,
+                      set_order=c("467", "ENO1","ENO2","NIP1"),
+                      comb_order = order(comb_size(matrixDetectedStrain),decreasing = TRUE),
+                      comb_col = c("#f5ee9e","#f3e368","#f7b267","#f25c54")[comb_degree(matrixDetectedStrain)])
+
+####Upset plots of detected proteins based on strains and fractions (e.g. appearing in 467_Inp, 467_P1 etc)
+####467
+x467_Inp <- peptides_processed[rowSums(exprs(peptides_processed)[, c(1:3)])>0, 
+                          c(1:3)]
+observed_467_Inp<-data.frame(ID=unique(x467_Inp@featureData@data$Proteins))
+x467_P1 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(4:6)])>0, 
+                          c(4:6)]
+observed_467_P1<-data.frame(ID=unique(x467_P1@featureData@data$Proteins))
+x467_P2 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(7:9)])>0, 
+                          c(7:9)]
+observed_467_P2<-data.frame(ID=unique(x467_P2@featureData@data$Proteins))
+x467_P3 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(10:12)])>0, 
+                          c(10:12)]
+observed_467_P3<-data.frame(ID=unique(x467_P3@featureData@data$Proteins))
+listDetected467Fractions = list(as.character(observed_467_Inp$ID), as.character(observed_467_P1$ID),
+                    as.character(observed_467_P2$ID),as.character(observed_467_P3$ID))
+listDetected467Fractions=setNames(listDetected467Fractions,c("467_Inp", "467_P1", "467_P2","467_P3"))
+matrixDetected467Fractions = make_comb_mat(listDetected467Fractions) #This can be used in upset plot
+ComplexHeatmap::UpSet(matrixDetected467Fractions,
+                      set_order=c("467_Inp", "467_P1","467_P2","467_P3"),
+                      comb_order = order(comb_size(matrixDetected467Fractions),decreasing = TRUE),
+                      comb_col = c("#f5ee9e","#f3e368","#f7b267","#f25c54")[comb_degree(matrixDetected467Fractions)])
+
+x467_Inp <- peptides_processed[rowSums(exprs(peptides_processed)[, c(1:3)])>0, 
+                          c(1:3)]
+observed_467_Inp<-data.frame(ID=unique(x467_Inp@featureData@data$Proteins))
+x467_P1 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(4:6)])>0, 
+                          c(4:6)]
+observed_467_P1<-data.frame(ID=unique(x467_P1@featureData@data$Proteins))
+x467_P2 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(7:9)])>0, 
+                          c(7:9)]
+observed_467_P2<-data.frame(ID=unique(x467_P2@featureData@data$Proteins))
+x467_P3 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(10:12)])>0, 
+                          c(10:12)]
+observed_467_P3<-data.frame(ID=unique(x467_P3@featureData@data$Proteins))
+listDetected467Fractions = list(as.character(observed_467_Inp$ID), as.character(observed_467_P1$ID),
+                    as.character(observed_467_P2$ID),as.character(observed_467_P3$ID))
+listDetected467Fractions=setNames(listDetected467Fractions,c("467_Inp", "467_P1", "467_P2","467_P3"))
+matrixDetected467Fractions = make_comb_mat(listDetected467Fractions) #This can be used in upset plot
+ComplexHeatmap::UpSet(matrixDetected467Fractions,
+                      set_order=c("467_Inp", "467_P1","467_P2","467_P3"),
+                      comb_order = order(comb_size(matrixDetected467Fractions),decreasing = TRUE),
+                      comb_col = c("#f5ee9e","#f3e368","#f7b267","#f25c54")[comb_degree(matrixDetected467Fractions)])
+
+
+####ENO1
+xENO1_Inp <- peptides_processed[rowSums(exprs(peptides_processed)[, c(13:15)])>0, 
+                          c(13:15)]
+observed_ENO1_Inp<-data.frame(ID=unique(xENO1_Inp@featureData@data$Proteins))
+xENO1_P1 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(16:18)])>0, 
+                          c(16:18)]
+observed_ENO1_P1<-data.frame(ID=unique(xENO1_P1@featureData@data$Proteins))
+xENO1_P2 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(19:21)])>0, 
+                          c(19:21)]
+observed_ENO1_P2<-data.frame(ID=unique(xENO1_P2@featureData@data$Proteins))
+xENO1_P3 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(22:24)])>0, 
+                          c(22:24)]
+observed_ENO1_P3<-data.frame(ID=unique(xENO1_P3@featureData@data$Proteins))
+listDetectedENO1Fractions = list(as.character(observed_ENO1_Inp$ID), as.character(observed_ENO1_P1$ID),
+                    as.character(observed_ENO1_P2$ID),as.character(observed_ENO1_P3$ID))
+listDetectedENO1Fractions=setNames(listDetectedENO1Fractions,c("ENO1_Inp", "ENO1_P1", "ENO1_P2","ENO1_P3"))
+matrixDetectedENO1Fractions = make_comb_mat(listDetectedENO1Fractions) #This can be used in upset plot
+ComplexHeatmap::UpSet(matrixDetectedENO1Fractions,
+                      set_order=c("ENO1_Inp", "ENO1_P1","ENO1_P2","ENO1_P3"),
+                      comb_order = order(comb_size(matrixDetectedENO1Fractions),decreasing = TRUE),
+                      comb_col = c("#f5ee9e","#f3e368","#f7b267","#f25c54")[comb_degree(matrixDetectedENO1Fractions)])
+
+
+###ENO2
+xENO2_Inp <- peptides_processed[rowSums(exprs(peptides_processed)[, c(25:27)])>0, 
+                          c(25:27)]
+observed_ENO2_Inp<-data.frame(ID=unique(xENO2_Inp@featureData@data$Proteins))
+xENO2_P1 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(28:30)])>0, 
+                          c(28:30)]
+observed_ENO2_P1<-data.frame(ID=unique(xENO2_P1@featureData@data$Proteins))
+xENO2_P2 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(31:33)])>0, 
+                          c(31:33)]
+observed_ENO2_P2<-data.frame(ID=unique(xENO2_P2@featureData@data$Proteins))
+xENO2_P3 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(34:36)])>0, 
+                          c(34:36)]
+observed_ENO2_P3<-data.frame(ID=unique(xENO2_P3@featureData@data$Proteins))
+listDetectedENO2Fractions = list(as.character(observed_ENO2_Inp$ID), as.character(observed_ENO2_P1$ID),
+                    as.character(observed_ENO2_P2$ID),as.character(observed_ENO2_P3$ID))
+listDetectedENO2Fractions=setNames(listDetectedENO2Fractions,c("ENO2_Inp", "ENO2_P1", "ENO2_P2","ENO2_P3"))
+matrixDetectedENO2Fractions = make_comb_mat(listDetectedENO2Fractions) #This can be used in upset plot
+ComplexHeatmap::UpSet(matrixDetectedENO2Fractions,
+                      set_order=c("ENO2_Inp", "ENO2_P1","ENO2_P2","ENO2_P3"),
+                      comb_order = order(comb_size(matrixDetectedENO2Fractions),decreasing = TRUE),
+                      comb_col = c("#f5ee9e","#f3e368","#f7b267","#f25c54")[comb_degree(matrixDetectedENO2Fractions)])
+
+
+###NIP1
+xNIP1_Inp <- peptides_processed[rowSums(exprs(peptides_processed)[, c(37:39)])>0, 
+                          c(37:39)]
+observed_NIP1_Inp<-data.frame(ID=unique(xNIP1_Inp@featureData@data$Proteins))
+xNIP1_P1 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(40:42)])>0, 
+                          c(40:42)]
+observed_NIP1_P1<-data.frame(ID=unique(xNIP1_P1@featureData@data$Proteins))
+xNIP1_P2 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(43:45)])>0, 
+                          c(43:45)]
+observed_NIP1_P2<-data.frame(ID=unique(xNIP1_P2@featureData@data$Proteins))
+xNIP1_P3 <- peptides_processed[rowSums(exprs(peptides_processed)[, c(46:48)])>0, 
+                          c(46:48)]
+observed_NIP1_P3<-data.frame(ID=unique(xNIP1_P3@featureData@data$Proteins))
+listDetectedNIP1Fractions = list(as.character(observed_NIP1_Inp$ID), as.character(observed_NIP1_P1$ID),
+                    as.character(observed_NIP1_P2$ID),as.character(observed_NIP1_P3$ID))
+listDetectedNIP1Fractions=setNames(listDetectedNIP1Fractions,c("NIP1_Inp", "NIP1_P1", "NIP1_P2","NIP1_P3"))
+matrixDetectedNIP1Fractions = make_comb_mat(listDetectedNIP1Fractions) #This can be used in upset plot
+ComplexHeatmap::UpSet(matrixDetectedNIP1Fractions,
+                      set_order=c("NIP1_Inp", "NIP1_P1","NIP1_P2","NIP1_P3"),
+                      comb_order = order(comb_size(matrixDetectedNIP1Fractions),decreasing = TRUE),
+                      comb_col = c("#f5ee9e","#f3e368","#f7b267","#f25c54")[comb_degree(matrixDetectedNIP1Fractions)])
+
+##################### Imputation and preprocessing ################
+
+#We want to look at proteins that are in P1 (these are what we think are the translation factories)
+#So we want to look at any protein that is identified at least once in one of the P1 sorted fractions
+all_granules <- peptides_processed
+# Remove rows with no measurements
+all_granules <- all_granules[rowSums(exprs(all_granules)[, -1])>0, ]
+# Retain only rows with at least one measurement in the P1 fraction
+#all_granules <- all_granules[rowSums(exprs(all_granules)[, c(15:16,27:29,39:41)])>0, ]
+all_granules <- all_granules[rowSums(exprs(all_granules)[, c(4:6,16:18,28:30,40:42)])>0, ]
+
+# Return 0s to NA for imputation
+exprs(all_granules)[exprs(all_granules)==0] <- NA
+exprs(peptides_processed)[exprs(peptides_processed)==0] <- NA
+
+# Imputation
+all_granule_peptides_imp<- MSnbase::impute(all_granules, method = "QRILC")
+
+#Roll up peptides to proteins
+granuleproteins <- MSnbase::combineFeatures(all_granule_peptides_imp, groupBy = fData(all_granule_peptides_imp)$Proteins, method = "robust")
+colnames(fData(granuleproteins))<-gsub("CV.", "", colnames(fData(granuleproteins)))
+
+#Normalise the samples
+granuleproteins_normQuantile<-normalise(granuleproteins, method="quantiles.robust")
+granuleproteins_normSum<-normalise(granuleproteins, method="sum")
+granuleproteins_normMedian<-normalise(granuleproteins, method="center.median")
+
+
+#Average replicates
+#QuantileNormalised
+repone_normQuantile<-granuleproteins_normQuantile[,seq(1,48,3)]
+sampleNames(repone_normQuantile) <- substr(sampleNames(repone_normQuantile), 1, nchar(sampleNames(repone_normQuantile))-2)
+reptwo_normQuantile<-granuleproteins_normQuantile[,seq(2, 48, 3)]
+sampleNames(reptwo_normQuantile) <- substr(sampleNames(reptwo_normQuantile), 1, nchar(sampleNames(reptwo_normQuantile))-2)
+repthree_normQuantile<-granuleproteins_normQuantile[,seq(3, 48, 3)]
+sampleNames(repthree_normQuantile) <- substr(sampleNames(repthree_normQuantile), 1, nchar(sampleNames(repthree_normQuantile))-2)
+avereps_normQuantile<-averageMSnSet(MSnSetList(list(repone_normQuantile, reptwo_normQuantile, repthree_normQuantile)))
+allgranules_imp_average_normQuantile<-avereps_normQuantile
+
+
+##############Post processing analysis################
+#First need to convert experiment to an expression set
+granuleproteinsES_Quantile<-as(allgranules_imp_average_normQuantile, "ExpressionSet")
+#Then separate the experiments - there's nothing gained really by clustering them all together
+#This includes the Tagged exps (e.g. 1:4 for ENO1) and the 467 exps as a control (13:16). You can normalise them separately and merge them back together so that the pattern in the 467 doesnt affect the pattern in the tagged strain. Will try this later on (these impacts come in at the standardise set below).
+ENO1ES_Quantile<-granuleproteinsES_Quantile[,c(1:4, 13:16)]
+ENO2ES_Quantile<-granuleproteinsES_Quantile[,c(5:8, 13:16)]
+NIP1ES_Quantile<-granuleproteinsES_Quantile[,c(9:12, 13:16)]
+
+minsetS<-standardise(ENO1ES_Quantile)   #5 or 10 clusters
+m1<-mestimate(minsetS)
+Dmin(minsetS,m1,crange = seq(2,20,1),repeats =5,visu = TRUE)
+
+minsetS<-standardise(ENO2ES_Quantile)   #5 clusters
+m1<-mestimate(minsetS)
+Dmin(minsetS,m1,crange = seq(2,20,1),repeats =5,visu = TRUE)
+
+minsetS<-standardise(NIP1ES_Quantile)   #6 or 11 clusters
+m1<-mestimate(minsetS)
+Dmin(minsetS,m1,crange = seq(2,20,1),repeats =5,visu = TRUE)
+
+
+#Quantile
+#ENO1
+for (clusters in 1:10)
+{
+  # Fuzzy clustering
+  numclusters=10
+  eff.seed<-sample(1:2^15, 1)
+  print(eff.seed)
+  #set.seed(3307)
+  minsetS<-standardise(ENO1ES_Quantile)
+  m1<-mestimate(minsetS)
+  cl<-mfuzz(minsetS,c=numclusters,m=m1)
+  assign(paste("clENO1_Quantile",eff.seed,sep=""),cl)
+  
+  print(clusters)
+  
+  pdf(file=paste("~/blobs_clustering/ENO1_Quantile_SingleStandardised_clustering",eff.seed,".pdf",sep=""), width = 6.5, height = 6.5)
+  #l<-layout(matrix(c(rep(c(1,1,1,2,3,5), 2), 1,1,1,6,7,8,4,4,4,6,7,8, rep(c(4,4,4,9,10,11), 2)), 6, 6, byrow = TRUE))
+  par(mfrow=c(4,4),mgp=c(3,0.25,-0.1), mar=c(2.1,1.1,2.1,1.1),oma=c(1,1,0,0), xpd=FALSE)
+  for (plot in c(1:numclusters))
+  {
+    mfuzz.plot2(minsetS, cl, colo=magma(64, direction=-1), x11=FALSE, mfrow = NA, xlab = "", ylab=NULL, centre = TRUE, 
+                single = plot, cex.main=0.9, cex.axis=0.7, cex.lab=0.9, tck=-0.03,
+                time.labels = c("In", "P1", "P2", "P3", "In", "P1", "P2", "P3"))
+    axis(side=1, at=c(2.5,6.5), labels = c("ENO1", "Untagged"), cex.axis=0.9, tck=0,line=1,lwd=0)
+  }
+  mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.35)
+  mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.66)
+  mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.965)
+  mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.05)
+  mfuzzColorBar(main="Membership", cex.main=0.9, cex.lab=0.9,col = magma(64, direction=-1) )
+  dev.off()
+}
+
+
+#ENO2
+for (clusters in 1:10)
+{
+  # Fuzzy clustering
+  numclusters=10
+  eff.seed<-sample(1:2^15, 1)
+  print(eff.seed)
+  #set.seed(3307)
+  minsetS<-standardise(ENO2ES_Quantile)
+  m1<-mestimate(minsetS)
+  cl<-mfuzz(minsetS,c=numclusters,m=m1)
+  assign(paste("clENO2_Quantile",eff.seed,sep=""),cl)
+  
+  print(clusters)
+  
+  pdf(file=paste("~/blobs_clustering/ENO2_Quantile_SingleStandardised_clustering",eff.seed,".pdf",sep=""), width = 6.5, height = 6.5)
+  #l<-layout(matrix(c(rep(c(1,1,1,2,3,5), 2), 1,1,1,6,7,8,4,4,4,6,7,8, rep(c(4,4,4,9,10,11), 2)), 6, 6, byrow = TRUE))
+  par(mfrow=c(4,4),mgp=c(3,0.25,-0.1), mar=c(2.1,1.1,2.1,1.1),oma=c(1,1,0,0), xpd=FALSE)
+  for (plot in c(1:numclusters))
+  {
+    mfuzz.plot2(minsetS, cl, colo=magma(64, direction=-1), x11=FALSE, mfrow = NA, xlab = "", ylab=NULL, centre = TRUE, 
+                single = plot, cex.main=0.9, cex.axis=0.7, cex.lab=0.9, tck=-0.03,
+                time.labels = c("In", "P1", "P2", "P3", "In", "P1", "P2", "P3"))
+    axis(side=1, at=c(2.5,6.5), labels = c("ENO2", "Untagged"), cex.axis=0.9, tck=0,line=1,lwd=0)
+  }
+  mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.35)
+  mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.66)
+  mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.965)
+  mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.05)
+  mfuzzColorBar(main="Membership", cex.main=0.9, cex.lab=0.9,col = magma(64, direction=-1) )
+  dev.off()
+}
+
+
+#NIP1
+for (clusters in 1:10)
+{
+  # Fuzzy clustering
+  numclusters=8
+  eff.seed<-sample(1:2^15, 1)
+  print(eff.seed)
+  #set.seed(3307)
+  minsetS<-standardise(NIP1ES_Quantile)
+  m1<-mestimate(minsetS)
+  cl<-mfuzz(minsetS,c=numclusters,m=m1)
+  assign(paste("clNIP1_Quantile",eff.seed,sep=""),cl)
+  
+  print(clusters)
+  
+  pdf(file=paste("~/blobs_clustering/NIP1_Quantile_SingleStandardised_clustering",eff.seed,".pdf",sep=""), width = 6.5, height = 6.5)
+  #l<-layout(matrix(c(rep(c(1,1,1,2,3,5), 2), 1,1,1,6,7,8,4,4,4,6,7,8, rep(c(4,4,4,9,10,11), 2)), 6, 6, byrow = TRUE))
+  par(mfrow=c(4,4),mgp=c(3,0.25,-0.1), mar=c(2.1,1.1,2.1,1.1),oma=c(1,1,0,0), xpd=FALSE)
+  for (plot in c(1:numclusters))
+  {
+    mfuzz.plot2(minsetS, cl, colo=magma(64, direction=-1), x11=FALSE, mfrow = NA, xlab = "", ylab=NULL, centre = TRUE, 
+                single = plot, cex.main=0.9, cex.axis=0.7, cex.lab=0.9, tck=-0.03,
+                time.labels = c("In", "P1", "P2", "P3", "In", "P1", "P2", "P3"))
+    axis(side=1, at=c(2.5,6.5), labels = c("NIP1", "Untagged"), cex.axis=0.9, tck=0,line=1,lwd=0)
+  }
+  mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.35)
+  mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.66)
+  mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.965)
+  mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.05)
+  mfuzzColorBar(main="Membership", cex.main=0.9, cex.lab=0.9,col = magma(64, direction=-1) )
+  dev.off()
+}
+
+##################Clustering Analysis###################
+#Irrespective of the seed, the clustering looks pretty similar. So we can just take one of each different clustering programmes and see what is going on in them.
+#We can observe which cluster contains the pCP-GFP protein, and use that to assign proteins that behave similarly. It may be worth taking the top 2 clusters for the pCP-GFP protein, depending on what the score is.
+
+
+#Function to convert clusters to lists of proteins of interest (POIs) and enrichment analyses. mfuzzy is the clustering output from mfuzz and clusterNumbers are the clusters you're interested in. This can be more than 1 cluster! Background is the background for the enrichment analysis. This should be all peptides identified across the Mass Spec - e.g. for ENO1 it should be all peptides found in either ENO1 or 467. etc etc. This is a list of gene names, not a number.
+cluster2POI <- function(mfuzzy, clusterNumbers,background,dir,plot){
+    POI = names(mfuzzy$cluster[which(mfuzzy$cluster %in% clusterNumbers)])  #Now see which other proteins are in the same cluster(s) of interest
+    correctIDsPOI<-bitr(POI, fromType = "ORF", toType = c("GENENAME"), OrgDb = org.Sc.sgd.db,drop=FALSE)  #Convert yeast ORF to gene name
+    for(i in 1:length(correctIDsPOI[,1])){
+      correctIDsPOI$Cluster[i]=mfuzzy$cluster[names(mfuzzy$cluster)==correctIDsPOI$ORF[i]]
+    }
+    egoPOI = enrichGO(gene=correctIDsPOI$GENENAME, OrgDb = org.Sc.sgd.db, ont = "BP", keyType = "GENENAME", minGSSize=1,universe = background, pvalueCutoff = 0.05,pAdjustMethod = "none") #Enrichment analysis
+    if(plot==TRUE){
+    pdf(file=paste(dir,gsub(pattern = "cl","",deparse(substitute(mfuzzy))),"_clustersOfInterest",".pdf",sep=""), width = 6.5, height = 6.5)
+    par(mfrow=c(4,4),mgp=c(3,0.25,-0.1), mar=c(2.1,1.1,2.1,1.1),oma=c(1,1,0,0), xpd=FALSE)
+    for (i in clusterNumbers){
+    p = mfuzz.plot2(eset = standardise(get(gsub("_","ES_",gsub(pattern = "cl","",deparse(substitute(mfuzzy)))))),
+                          cl=mfuzzy,
+                          single = i,
+                          colo=magma(64, direction=-1),
+                          x11=FALSE,
+                          mfrow = NA,
+                          xlab = "",
+                          ylab=NULL,
+                          centre = TRUE, 
+                          cex.main=0.9,
+                          cex.axis=0.7,
+                          cex.lab=0.9,
+                          tck=-0.03,
+                          time.labels = c("In", "P1", "P2", "P3", "In", "P1", "P2", "P3"))
+    axis(side=1, at=c(2.5,6.5), labels = c(gsub("_Sum","",gsub(pattern = "cl","",deparse(substitute(mfuzzy)))), "Untagged"), cex.axis=0.9, tck=0,line=1,lwd=0)
+    }
+    mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.35)
+    mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.66)
+    mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.965)
+    mtext("Relative protein abundance", side=2, outer=TRUE, line=0, cex=0.55, adj=0.05)
+    mfuzzColorBar(main="Membership", cex.main=0.9, cex.lab=0.9,col = magma(64, direction=-1) )
+  dev.off()
+    }
+    return(list(clusterNumbers,correctIDsPOI,egoPOI))
+}
+
+clENO1_Quantile = clENO1_Quantile5415
+clENO2_Quantile = clENO2_Quantile16496
+clNIP1_Quantile = clNIP1_Quantile30264
+clENO1_Quantile_Double = clENO1_Quantile_Double10824
+clENO2_Quantile_Double = clENO2_Quantile_Double31904
+clNIP1_Quantile_Double = clNIP1_Quantile_Double20262
+
+pCP_clusterENO1_Quantile<-clENO1_Quantile$cluster[which(names(clENO1_Quantile$cluster)=="CP3;CP2;coatProtein|pCP-GFPMS2;GFPx3")]
+pCP_clusterENO2_Quantile<-clENO2_Quantile$cluster[which(names(clENO2_Quantile$cluster)=="CP3;CP2;coatProtein|pCP-GFPMS2;GFPx3")]
+pCP_clusterNIP1_Quantile<-order(subset(clNIP1_Quantile$membership,row.names(clNIP1_Quantile$membership)=="CP3;CP2;coatProtein|pCP-GFPMS2;GFPx3"),decreasing = TRUE)[1:2]
+
+#Do cluster2POI for the datasets above.
+ENO1_Quantile_POIs = cluster2POI(mfuzzy = clENO1_Quantile, dir="~/blobs_clustering/October2020/QuantileNormalised/", clusterNumbers=pCP_clusterENO1_Quantile,background = bitr(rownames(clENO1_Quantile$membership), fromType = "ORF", toType = c("GENENAME"), OrgDb = org.Sc.sgd.db,drop=FALSE)$GENENAME)
+ENO2_Quantile_POIs = cluster2POI(mfuzzy = clENO2_Quantile,dir="~/blobs_clustering/October2020/QuantileNormalised/", clusterNumbers=pCP_clusterENO2_Quantile, background = bitr(rownames(clENO2_Quantile$membership), fromType = "ORF", toType = c("GENENAME"), OrgDb = org.Sc.sgd.db,drop=FALSE)$GENENAME)
+NIP1_Quantile_POIs = cluster2POI(plot=FALSE,mfuzzy = clNIP1_Quantile,dir="~/blobs_clustering/October2020/QuantileNormalised/", clusterNumbers=pCP_clusterNIP1_Quantile, background = bitr(rownames(clNIP1_Quantile$membership), fromType = "ORF", toType = c("GENENAME"), OrgDb = org.Sc.sgd.db,drop=FALSE)$GENENAME)
+
+write.csv(file="~/blobs_clustering/October2020/QuantileNormalised/ENO1.csv", ENO1_Quantile_POIs[[2]])
+write.csv(file="~/blobs_clustering/October2020/QuantileNormalised/ENO2.csv", ENO2_Quantile_POIs[[2]])
+write.csv(file="~/blobs_clustering/October2020/QuantileNormalised/NIP1.csv", NIP1_Quantile_POIs[[2]])

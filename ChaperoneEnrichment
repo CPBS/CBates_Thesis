@@ -1,0 +1,228 @@
+######Chaperones#######
+require(dplyr)
+require(tidyr)
+require(ggplot2)
+ChapInt = xlsx::read.xlsx("~/Documents/Thesis--sssss/Chapter2/4.5 Chaperones/Chaperone Interaction Atlas/Chaperone-NonChaperoneInteractions.xlsx", sheetIndex = 1)
+
+
+CapStr <- function(y) {
+  c <- strsplit(y, " ")[[1]]
+  paste(toupper(substring(c, 1,1)), substring(c, 2),
+        sep="", collapse=" ")
+}
+
+### Interested in interactions with PPT1! (both) HCH1! (both) YDJ1 (both) CWC23 (NIP) APJ1 (NIP) HSC82 (NIP) HSP78 (NIP) JJJ2 (NIP)
+YDJ1 = ChapInt$Ydj1
+YDJ1 =gsub(x = YDJ1,pattern = ",[pb]","")
+
+CWC23 = ChapInt$Cwc23
+CWC23 =gsub(x = CWC23,pattern = ",[pb]","")
+
+APJ1 = ChapInt$Apj1
+APJ1 =gsub(x = APJ1,pattern = ",[pb]","")
+
+HSC82 = ChapInt$Hsc82
+HSC82 =gsub(x = HSC82,pattern = ",[pb]","")
+
+HSP78 = ChapInt$Hsp78
+HSP78 =gsub(x = HSP78,pattern = ",[pb]","")
+
+JJJ2 = ChapInt$Jjj2
+JJJ2 =gsub(x = JJJ2,pattern = ",[pb]","")
+
+ZUO1 = ChapInt$Zuo1
+ZUO1 =gsub(x = ZUO1,pattern = ",[pb]","")
+
+localizedRNAs$Lower = tolower(localizedRNAs$mRNA)
+localizedRNAs$Lower = sapply(localizedRNAs$Lower, CapStr)
+
+localizedRNAs$YDJ1 = localizedRNAs$Lower %in% YDJ1
+localizedRNAs$CWC23 = localizedRNAs$Lower %in% CWC23
+localizedRNAs$APJ1 = localizedRNAs$Lower %in% APJ1
+localizedRNAs$HSC82 = localizedRNAs$Lower %in% HSC82
+localizedRNAs$HSP78 = localizedRNAs$Lower %in% HSP78
+localizedRNAs$JJJ2 = localizedRNAs$Lower %in% JJJ2
+
+localizedRNAs$ZUO1 = localizedRNAs$Lower %in% ZUO1
+
+BKGDYDJ1 = (length(na.omit(YDJ1))/6275)
+BKGDCWC23 = (length(na.omit(CWC23))/6275)
+BKGDAPJ1 = (length(na.omit(APJ1))/6275)
+BKGDHSC82 = (length(na.omit(HSC82))/6275)
+BKGDHSP78 = (length(na.omit(HSP78))/6275)
+BKGDJJJ2 = (length(na.omit(JJJ2))/6275)
+
+library(tidyr)
+
+# The arguments to gather():
+# - data: Data object
+# - key: Name of new key column (made from names of data columns)
+# - value: Name of new value column
+# - ...: Names of source columns that contain values
+# - factor_key: Treat the new key column as a factor (instead of character vector)
+localizedRNAsChaperones <- gather(localizedRNAs, Chaperone, Interactor, YDJ1:JJJ2, factor_key=TRUE)
+
+localizedRNAsChaperonesProps = localizedRNAsChaperones %>% group_by(Granule,Chaperone, Interactor) %>% summarise(n=n()) %>% mutate(freq = n / sum(n))
+
+
+propsDF_BKGD = data.frame(Granule=rep("BKGD",12), Chaperone = c("YDJ1","YDJ1","CWC23","CWC23","APJ1","APJ1","HSC82","HSC82","HSP78","HSP78","JJJ2","JJJ2"), Interactor = rep(c("TRUE","FALSE"),6), n=rep(0,12),freq=c(BKGDYDJ1, 1-BKGDYDJ1,BKGDCWC23, 1-BKGDCWC23,BKGDAPJ1, 1-BKGDAPJ1,BKGDHSC82, 1-BKGDHSC82,BKGDHSP78, 1-BKGDHSP78,BKGDJJJ2, 1-BKGDJJJ2))
+
+localizedRNAsChaperonesProps=rbind(propsDF_BKGD, localizedRNAsChaperonesProps) 
+
+localizedRNAsChaperonesProps$Granule = factor(localizedRNAsChaperonesProps$Granule, levels=c("BKGD", "CoFe", "Afe", "Translation"))
+
+cairo_pdf("~/Dropbox (The University of Manchester)/ChristianBates_Thesis/Chapter 4/Figures/4.5 Chaperones/Chaperone Interaction Atlas/ChaperoneEnrichment_IncBCKGROUND.pdf", width = (120*0.0393701) ,height = (90*0.0393701))
+ggplot(localizedRNAsChaperonesProps, aes(Granule, freq, fill=Interactor))+
+  geom_bar(stat="identity")+
+  facet_wrap(~Chaperone,nrow = 2)+
+  theme_Publication_GridlinesTesting(base_family = "Avenir Black")+
+  theme(plot.margin = unit(c(1, 1, 1, 3), "mm"))
+dev.off()
+
+#####Hypergeometric tests#######
+m=length(subset(YDJ1, !is.na(YDJ1))) #Number of marks, e.g. the total number of genes bound to YDJ1
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="Translation")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="YDJ1" & localizedRNAsChaperonesProps$Granule=="Translation" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueYDJ1Translation=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+m=length(subset(YDJ1, !is.na(YDJ1))) #Number of marks, e.g. the total number of genes bound to YDJ1
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="CoFe")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="YDJ1" & localizedRNAsChaperonesProps$Granule=="CoFe" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueYDJ1CoFe=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+m=length(subset(YDJ1, !is.na(YDJ1))) #Number of marks, e.g. the total number of genes bound to YDJ1
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="Afe")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="YDJ1" & localizedRNAsChaperonesProps$Granule=="Afe" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueYDJ1Afe=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+
+
+
+m=length(subset(CWC23, !is.na(CWC23))) #Number of marks, e.g. the total number of genes bound to CWC23
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="Translation")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="CWC23" & localizedRNAsChaperonesProps$Granule=="Translation" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueCWC23Translation=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+p.valueCWC23Translation = 1
+
+m=length(subset(CWC23, !is.na(CWC23))) #Number of marks, e.g. the total number of genes bound to CWC23
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="CoFe")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="CWC23" & localizedRNAsChaperonesProps$Granule=="CoFe" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueCWC23CoFe=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+m=length(subset(CWC23, !is.na(CWC23))) #Number of marks, e.g. the total number of genes bound to CWC23
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="Afe")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="CWC23" & localizedRNAsChaperonesProps$Granule=="Afe" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueCWC23Afe=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+
+
+
+
+m=length(subset(APJ1, !is.na(APJ1))) #Number of marks, e.g. the total number of genes bound to APJ1
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="Translation")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="APJ1" & localizedRNAsChaperonesProps$Granule=="Translation" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueAPJ1Translation=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+m=length(subset(APJ1, !is.na(APJ1))) #Number of marks, e.g. the total number of genes bound to APJ1
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="CoFe")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="APJ1" & localizedRNAsChaperonesProps$Granule=="CoFe" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueAPJ1CoFe=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+m=length(subset(APJ1, !is.na(APJ1))) #Number of marks, e.g. the total number of genes bound to APJ1
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="Afe")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="APJ1" & localizedRNAsChaperonesProps$Granule=="Afe" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueAPJ1Afe=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+
+
+
+
+m=length(subset(HSC82, !is.na(HSC82))) #Number of marks, e.g. the total number of genes bound to HSC82
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="Translation")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="HSC82" & localizedRNAsChaperonesProps$Granule=="Translation" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueHSC82Translation=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+m=length(subset(HSC82, !is.na(HSC82))) #Number of marks, e.g. the total number of genes bound to HSC82
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="CoFe")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="HSC82" & localizedRNAsChaperonesProps$Granule=="CoFe" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueHSC82CoFe=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+m=length(subset(HSC82, !is.na(HSC82))) #Number of marks, e.g. the total number of genes bound to HSC82
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="Afe")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="HSC82" & localizedRNAsChaperonesProps$Granule=="Afe" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueHSC82Afe=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+
+
+m=length(subset(HSP78, !is.na(HSP78))) #Number of marks, e.g. the total number of genes bound to HSP78
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="Translation")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="HSP78" & localizedRNAsChaperonesProps$Granule=="Translation" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueHSP78Translation=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+m=length(subset(HSP78, !is.na(HSP78))) #Number of marks, e.g. the total number of genes bound to HSP78
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="CoFe")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="HSP78" & localizedRNAsChaperonesProps$Granule=="CoFe" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueHSP78CoFe=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+m=length(subset(HSP78, !is.na(HSP78))) #Number of marks, e.g. the total number of genes bound to HSP78
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="Afe")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="HSP78" & localizedRNAsChaperonesProps$Granule=="Afe" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueHSP78Afe=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+
+m=length(subset(JJJ2, !is.na(JJJ2))) #Number of marks, e.g. the total number of genes bound to JJJ2
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="Translation")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="JJJ2" & localizedRNAsChaperonesProps$Granule=="Translation" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueJJJ2Translation=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+p.valueJJJ2Translation = 1 #Set to 1 as 0 in there.
+
+m=length(subset(JJJ2, !is.na(JJJ2))) #Number of marks, e.g. the total number of genes bound to JJJ2
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="CoFe")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="JJJ2" & localizedRNAsChaperonesProps$Granule=="CoFe" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueJJJ2CoFe=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+m=length(subset(JJJ2, !is.na(JJJ2))) #Number of marks, e.g. the total number of genes bound to JJJ2
+N=6275 #Total number of genes in yeast (in an ideal world, this number would be less, e.g. the number of proteins potentially discoverable by the methods)
+n=N-m #non-marked elements
+k=length(subset(localizedRNAs$mRNA, localizedRNAs$Granule=="Afe")) #Background number of genes we were analysing - e.g. the number of genes identified in 2520
+x=subset(localizedRNAsChaperonesProps$n, localizedRNAsChaperonesProps$Chaperone=="JJJ2" & localizedRNAsChaperonesProps$Granule=="Afe" & localizedRNAsChaperonesProps$Interactor==TRUE) #Number of marked genes in background
+p.valueJJJ2Afe=phyper(q=x-1,m=m,n=n,k=k,lower.tail = FALSE) #Do x-1 because want to calculate p-val for enrichment. Therefore if p is signif for x-1, we are enriched.
+
+
+StatDF = data.frame(Granule = rep(c("Translation","CoFe","AFe"),6), Chaperone = c(rep("YDJ1",3),rep("CWC23",3),rep("APJ1",3),rep("HSC82",3),rep("HSP78",3),rep("JJJ2",3)), pVal = c(p.valueYDJ1Translation, p.valueYDJ1CoFe, p.valueYDJ1Afe, p.valueCWC23Translation, p.valueCWC23CoFe, p.valueCWC23Afe, p.valueAPJ1Translation, p.valueAPJ1CoFe,p.valueAPJ1Afe,p.valueHSC82Translation,p.valueHSC82CoFe,p.valueHSC82Afe,p.valueHSP78Translation,p.valueHSP78CoFe,p.valueHSP78Afe,p.valueJJJ2Translation,p.valueJJJ2CoFe,p.valueJJJ2Afe))
+
+write.csv(file="~/Documents/Thesis--sssss/Chapter2/4.5 Chaperones/Chaperone Interaction Atlas/ChaperoneStats.csv", StatDF)
